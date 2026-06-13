@@ -1,0 +1,17 @@
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfstate.lock.info
+*.tfvars.local
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.lock.hcl
+venv/
+__pycache__/
+*.pyc
+lambda/sigma_cross_account/sigma_cross_account.zip
+*.plan

@@ -1,0 +1,88 @@
+name: Terraform Plan
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+env:
+  AWS_REGION: us-east-2
+  CONTROL_ACCOUNT_ID: 380093117861
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.CONTROL_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve target account ID
+        id: resolve
+        run: |
+          case "${{ inputs.environment }}" in
+            dev)     echo "id=932708079800" >> $GITHUB_OUTPUT ;;
+            staging) echo "id=074642417664" >> $GITHUB_OUTPUT ;;
+            prod)    echo "id=366985590058" >> $GITHUB_OUTPUT ;;
+          esac
+
+      - name: Assume target account role via Sigma
+        id: sigma_assume
+        run: |
+          TARGET_ACCOUNT_ID="${{ steps.resolve.outputs.id }}"
+          CREDS=$(aws lambda invoke \
+            --function-name sigma_cross_account \
+            --region ${{ env.AWS_REGION }} \
+            --payload "{\"target_account_id\": \"$TARGET_ACCOUNT_ID\", \"target_role_name\": \"TerraformExecutionRole\", \"session_name\": \"terraform-plan-${{ inputs.environment }}\"}" \
+            /dev/stdout | jq -r '.body' | jq -r '.')
+          echo "AWS_ACCESS_KEY_ID=$(echo $CREDS | jq -r '.access_key_id')" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=$(echo $CREDS | jq -r '.secret_access_key')" >> $GITHUB_ENV
+          echo "AWS_SESSION_TOKEN=$(echo $CREDS | jq -r '.session_token')" >> $GITHUB_ENV
+
+      - name: Terraform Init
+        working-directory: environments/${{ inputs.environment }}
+        run: terraform init
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: environments/${{ inputs.environment }}
+        run: |
+          terraform plan -no-color -out=tfplan 2>&1 | tee plan_output.txt
+        continue-on-error: true
+
+      - name: Post plan to summary
+        if: steps.plan.outcome == 'success' || steps.plan.outcome == 'failure'
+        working-directory: environments/${{ inputs.environment }}
+        run: |
+          {
+            echo "## Terraform Plan - ${{ inputs.environment }}"
+            echo '```'
+            cat plan_output.txt
+            echo '```'
+          } >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload plan artifact
+        if: steps.plan.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ inputs.environment }}
+          path: environments/${{ inputs.environment }}/tfplan

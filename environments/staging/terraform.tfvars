@@ -1,0 +1,10 @@
+aws_region       = "us-east-2"
+environment      = "staging"
+target_account_id = "074642417664"
+vpc_cidr         = "10.1.0.0/16"
+instance_type    = "t3.small"
+db_instance_class = "db.t3.small"
+multi_az         = true
+min_size         = 1
+max_size         = 3
+desired_capacity = 2

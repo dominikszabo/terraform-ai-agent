@@ -1,0 +1,10 @@
+aws_region       = "us-east-2"
+environment      = "prod"
+target_account_id = "366985590058"
+vpc_cidr         = "10.2.0.0/16"
+instance_type    = "t3.medium"
+db_instance_class = "db.t3.medium"
+multi_az         = true
+min_size         = 2
+max_size         = 6
+desired_capacity = 2

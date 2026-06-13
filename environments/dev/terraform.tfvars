@@ -1,0 +1,10 @@
+aws_region       = "us-east-2"
+environment      = "dev"
+target_account_id = "932708079800"
+vpc_cidr         = "10.0.0.0/16"
+instance_type    = "t3.micro"
+db_instance_class = "db.t3.micro"
+multi_az         = false
+min_size         = 1
+max_size         = 2
+desired_capacity = 1

@@ -1,0 +1,66 @@
+name: Terraform Apply - Staging
+
+on:
+  push:
+    branches:
+      - staging
+    paths:
+      - 'environments/staging/**'
+      - 'modules/**'
+
+env:
+  AWS_REGION: us-east-2
+  CONTROL_ACCOUNT_ID: 380093117861
+  TARGET_ACCOUNT_ID: 074642417664
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.CONTROL_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Assume target account role via Sigma
+        id: sigma_assume
+        run: |
+          CREDS=$(aws lambda invoke \
+            --function-name sigma_cross_account \
+            --region ${{ env.AWS_REGION }} \
+            --payload "{\"target_account_id\": \"${{ env.TARGET_ACCOUNT_ID }}\", \"target_role_name\": \"TerraformExecutionRole\", \"session_name\": \"terraform-apply-staging\"}" \
+            /dev/stdout | jq -r '.body' | jq -r '.')
+          echo "AWS_ACCESS_KEY_ID=$(echo $CREDS | jq -r '.access_key_id')" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=$(echo $CREDS | jq -r '.secret_access_key')" >> $GITHUB_ENV
+          echo "AWS_SESSION_TOKEN=$(echo $CREDS | jq -r '.session_token')" >> $GITHUB_ENV
+
+      - name: Terraform Init
+        working-directory: environments/staging
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: environments/staging
+        run: |
+          terraform apply -auto-approve -no-color 2>&1 | tee apply_output.txt
+
+      - name: Post apply output to summary
+        working-directory: environments/staging
+        run: |
+          {
+            echo "## Terraform Apply - Staging"
+            echo '```'
+            cat apply_output.txt
+            echo '```'
+          } >> $GITHUB_STEP_SUMMARY
