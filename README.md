@@ -19,14 +19,7 @@ GitHub Actions → OIDC → Control Account (IAM roles + Sigma Lambda)
 - **State:** S3 in control account, path-per-env (`env:dev/`, `env:staging/`, `env:prod/`)
 - **State locking:** DynamoDB
 
-## Account Structure
 
-| Account | ID | Purpose |
-|---|---|---|
-| Control | `380093117861` | OIDC, Sigma, S3 state, IAM |
-| Dev | `932708079800` | Development environment |
-| Staging | `074642417664` | Staging environment |
-| Prod | `366985590058` | Production environment |
 
 ## Repository Structure
 
